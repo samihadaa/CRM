@@ -80,7 +80,6 @@ app.use(PrimeVue, {
 app.use(pinia);
 app.use(router);
 app.use(i18n);
-app.use(PrimeVue);
 app.component('InputText', InputText);
 app.component('Button', Button);
 app.component('Dropdown', Dropdown);

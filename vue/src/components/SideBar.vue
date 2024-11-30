@@ -48,7 +48,7 @@
                 </li>
             </ul>
         </div>
-        <div class="col">
+        <div class="col overflow-auto h-100">
             <div class="">
                 <router-view></router-view>
             </div>
