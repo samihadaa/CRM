@@ -44,6 +44,63 @@
     <div class="card col-1 ms-3">
         <Button label="Afficher" icon="pi pi-external-link" @click="dialogVisible = true" />
 
+        <Dialog v-model:visible="productDialog" :style="{ width: '450px' }" header="Product Details" :modal="true">
+            <div class="flex flex-col gap-6">
+                <img v-if="false" :src="`https://primefaces.org/cdn/primevue/images/product/${product.image}`" :alt="product.image" class="block m-auto pb-4" />
+                <div>
+                    <label for="name" class="block font-bold mb-3">Name</label>
+                    <InputText id="name" v-model.trim="product.name" required="true" autofocus :invalid="submitted && !product.name" fluid />
+                    <small v-if="submitted && !product.name" class="text-red-500">Name is required.</small>
+                </div>
+                <div>
+                    <label for="description" class="block font-bold mb-3">Description</label>
+                    <Textarea id="description" v-model="product.description" required="true" rows="3" cols="20" fluid />
+                </div>
+                <div>
+                    <label for="inventoryStatus" class="block font-bold mb-3">Inventory Status</label>
+                    <Select id="inventoryStatus" v-model="product.inventoryStatus" :options="statuses" optionLabel="label" placeholder="Select a Status" fluid></Select>
+                </div>
+
+                <div>
+                    <span class="block font-bold mb-4">Category</span>
+                    <div class="grid grid-cols-12 gap-4">
+                        <div class="flex items-center gap-2 col-span-6">
+                            <RadioButton id="category1" v-model="product.category" name="category" value="Accessories" />
+                            <label for="category1">Accessories</label>
+                        </div>
+                        <div class="flex items-center gap-2 col-span-6">
+                            <RadioButton id="category2" v-model="product.category" name="category" value="Clothing" />
+                            <label for="category2">Clothing</label>
+                        </div>
+                        <div class="flex items-center gap-2 col-span-6">
+                            <RadioButton id="category3" v-model="product.category" name="category" value="Electronics" />
+                            <label for="category3">Electronics</label>
+                        </div>
+                        <div class="flex items-center gap-2 col-span-6">
+                            <RadioButton id="category4" v-model="product.category" name="category" value="Fitness" />
+                            <label for="category4">Fitness</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-12 gap-4">
+                    <div class="col-span-6">
+                        <label for="price" class="block font-bold mb-3">Price</label>
+                        <InputNumber id="price" v-model="product.price" mode="currency" currency="USD" locale="en-US" fluid />
+                    </div>
+                    <div class="col-span-6">
+                        <label for="quantity" class="block font-bold mb-3">Quantity</label>
+                        <InputNumber id="quantity" v-model="product.quantity" integeronly fluid />
+                    </div>
+                </div>
+            </div>
+
+            <template #footer>
+                <Button label="Cancel" icon="pi pi-times" text @click="hideDialog" />
+                <Button label="Save" icon="pi pi-check" @click="saveProduct" />
+            </template>
+        </Dialog>
+        
         <Dialog v-model:visible="dialogVisible" header="Flex Scroll" :style="{ width: '75vw' }" maximizable modal :contentStyle="{ height: '300px' }">
             <DataTable :value="customers" scrollable scrollHeight="flex" tableStyle="min-width: 50rem">
                 <Column field="name" header="Nom"></Column>
@@ -55,7 +112,31 @@
                 <Button label="Ok" icon="pi pi-check" @click="dialogVisible = false" />
             </template>
         </Dialog>
+
+        <Dialog v-model:visible="deleteProductsDialog" :style="{ width: '450px' }" header="Confirm" :modal="true">
+            <div class="flex items-center gap-4">
+                <i class="pi pi-exclamation-triangle !text-3xl" />
+                <span v-if="product">Are you sure you want to delete the selected products?</span>
+            </div>
+            <template #footer>
+                <Button label="No" icon="pi pi-times" text @click="deleteProductsDialog = false" />
+                <Button label="Yes" icon="pi pi-check" text @click="deleteSelectedProducts" />
+            </template>
+        </Dialog>
+
     </div>
+
+    <Toolbar class="mb-6">
+                <template #start>
+                    <Button label="New" icon="pi pi-plus" class="mr-2" @click="openNew" />
+                    <Button label="Delete" icon="pi pi-trash" severity="danger" outlined @click="confirmDeleteSelected" :disabled="!selectedCustomer || !selectedCustomer.length" />
+                </template>
+
+                <template #end>
+                    <FileUpload mode="basic" accept="image/*" :maxFileSize="1000000" label="Import" customUpload chooseLabel="Import" class="mr-2" auto :chooseButtonProps="{ severity: 'secondary' }" />
+                    <Button label="Export" icon="pi pi-upload" severity="secondary" @click="exportCSV($event)" />
+                </template>
+            </Toolbar>
 
                 <!-- <p>Créez des profils clients pour garder une trace de l'historique et des coordonnées de vos clients</p> -->
 
@@ -69,7 +150,7 @@
                     <template #header>
 
                         <div class="text-end pb-4">
-            <Button icon="pi pi-external-link" label="Export" @click="exportCSV($event)" />
+            <!-- <Button icon="pi pi-external-link" label="Export" @click="exportCSV($event)" /> -->
         </div>
 
                         <div style="text-align:left">
@@ -194,7 +275,7 @@
     </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { CustomerService } from '../service/CustomerService.js';
 import { FilterMatchMode, FilterOperator } from '@primevue/core/api';
@@ -208,9 +289,23 @@ import MultiSelect from 'primevue/multiselect';
 import DatePicker from 'primevue/datepicker';
 import InputNumber from 'primevue/inputnumber';
 import Dialog from 'primevue/dialog';
+import Toolbar from 'primevue/toolbar';
+import FileUpload from 'primevue/fileupload';
+import Textarea from 'primevue/textarea';
+import InputText from 'primevue/inputtext';
+import Select from 'primevue/select';
+import RadioButton from 'primevue/radiobutton';
 
 const dialogVisible = ref(false);
 const customers = ref();
+const deleteProductsDialog = ref(false);
+
+//TO DO: used just for testing the modal
+const product = ref({});
+const submitted = ref(false);
+const productDialog = ref(false);
+const products = ref();
+
 const selectedCustomer = ref();
 const filters = ref();
 const representatives = ref([
@@ -228,7 +323,7 @@ const representatives = ref([
 const statuses = ref(['unqualified', 'qualified', 'new', 'negotiation', 'renewal', 'proposal']);
 
 onMounted(() => {
-    CustomerService.getCustomersLarge().then((data) => {
+    CustomerService.getCustomersLarge().then((data: any) => {
         customers.value = getCustomers(data);
     });
 });
@@ -247,27 +342,27 @@ const initFilters = () => {
 };
 
 initFilters();
-const formatDate = (value) => {
+const formatDate = (value: any) => {
     return value.toLocaleDateString('en-US', {
         day: '2-digit',
         month: '2-digit',
         year: 'numeric'
     });
 };
-const formatCurrency = (value) => {
+const formatCurrency = (value: any) => {
     return value.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 };
 const clearFilter = () => {
     initFilters();
 };
-const getCustomers = (data) => {
+const getCustomers = (data: any) => {
     return [...(data || [])].map((d) => {
         d.date = new Date(d.date);
 
         return d;
     });
 };
-const getSeverity = (status) => {
+const getSeverity = (status: string) => {
     switch (status) {
         case 'unqualified':
             return 'danger';
@@ -292,19 +387,19 @@ const cities = ref([
     { name: "Bad clients", code: "LDN" },
 ]);
 
-const onRowSelect = (event) => {
-    console.log('unmark row ');
+const onRowSelect = (event: any) => {
+    console.log('unmark row ', event);
     // toast.add({ severity: 'info', summary: 'Product Selected', detail: 'Name: ' + event.data.name, life: 3000 });
 };
-const onRowUnselect = (event) => {
-    console.log('mark row ');
+const onRowUnselect = (event: any) => {
+    console.log('mark row ', event);
     // toast.add({ severity: 'warn', summary: 'Product Unselected', detail: 'Name: ' + event.data.name, life: 3000 });
 }
 
 const onColReorder = () => {
     // toast.add({severity:'success', summary: 'Column Reordered', life: 3000});
 };
-const onRowReorder = (event) => {
+const onRowReorder = (event: any) => {
     customers.value = event.value;
     // toast.add({severity:'success', summary: 'Rows Reordered', life: 3000});
 };
@@ -317,12 +412,12 @@ const columns = ref([
     {field: 'status', header: 'Status'},
 ]);
 const selectedColumns = ref(columns.value);
-const onToggle = (val) => {
+const onToggle = (val: any) => {
     selectedColumns.value = columns.value.filter(col => val.includes(col));
     console.log('selectedColumns :', selectedColumns.value);
 };
 
-const containsField = (fieldName)=> {
+const containsField = (fieldName: any)=> {
       return selectedColumns.value.some(column => column.field === fieldName);
     }
 
@@ -330,6 +425,56 @@ const containsField = (fieldName)=> {
 const exportCSV = () => {
     dt.value.exportCSV();
 };
+
+const openNew = () => {
+    product.value = {};
+    submitted.value = false;
+    productDialog.value = true;
+};
+const hideDialog = () => {
+    productDialog.value = false;
+    submitted.value = false;
+};
+const createId = () => {
+    let id = '';
+    var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    for ( var i = 0; i < 5; i++ ) {
+        id += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return id;
+}
+const saveProduct = () => {
+    submitted.value = true;
+
+    if (product?.value.name?.trim()) {
+        if (product.value.id) {
+            product.value.inventoryStatus = product.value.inventoryStatus.value ? product.value.inventoryStatus.value : product.value.inventoryStatus;
+            products.value[findIndexById(product.value.id)] = product.value;
+            toast.add({severity:'success', summary: 'Successful', detail: 'Product Updated', life: 3000});
+        }
+        else {
+            product.value.id = createId();
+            product.value.code = createId();
+            product.value.image = 'product-placeholder.svg';
+            product.value.inventoryStatus = product.value.inventoryStatus ? product.value.inventoryStatus.value : 'INSTOCK';
+            // products.value.push(product.value);
+            // toast.add({severity:'success', summary: 'Successful', detail: 'Product Created', life: 3000});
+        }
+
+        productDialog.value = false;
+        product.value = {};
+    }
+};
+const confirmDeleteSelected = () => {
+    deleteProductsDialog.value = true;
+};
+const deleteSelectedProducts = () => {
+    customers.value = customers.value.filter(val => !selectedCustomer.value.includes(val));
+    deleteProductsDialog.value = false;
+    selectedCustomer.value = null;
+    // toast.add({severity:'success', summary: 'Successful', detail: 'Products Deleted', life: 3000});
+};
+
 </script>
 
 <style></style>
